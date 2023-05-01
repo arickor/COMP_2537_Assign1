@@ -105,6 +105,42 @@ app.get("/signup", (req, res) => {
   res.send(html);
 });
 
+app.post('/loggingin', async (req,res) => {
+  var username = req.body.username;
+  var password = req.body.password;
+
+const schema = Joi.string().max(20).required();
+const validationResult = schema.validate(username);
+if (validationResult.error != null) {
+   console.log(validationResult.error);
+   res.redirect("/login");
+   return;
+}
+
+const result = await userCollection.find({username: username}).project({username: 1, password: 1, _id: 1}).toArray();
+
+console.log(result);
+if (result.length != 1) {
+  console.log("user not found");
+  res.redirect("/login");
+  return;
+}
+if (await bcrypt.compare(password, result[0].password)) {
+  console.log("correct password");
+  req.session.authenticated = true;
+  req.session.username = username;
+  req.session.cookie.maxAge = expireTime;
+
+  res.redirect('/loggedIn');
+  return;
+}
+else {
+  console.log("incorrect password");
+  res.redirect("/login");
+  return;
+}
+});
+
 app.get("/corgi/:id", (req, res) => {
   var corgi = req.params.id;
   if (corgi == 1) {
