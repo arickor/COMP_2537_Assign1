@@ -1,4 +1,4 @@
-require('dotenv').config();
+require("dotenv").config();
 require("./utils.js");
 
 const MongoStore = require("connect-mongo");
@@ -12,7 +12,16 @@ const app = express();
 
 const port = process.env.PORT || 3000;
 
-const node_session_secret = "a9ba7660-79f2-421b-a24a-122fd8300b85";
+const expireTime = 1 * 60 * 60 * 1000; // 1 hour
+
+/* secret info */
+const mongodb_host = process.env.MONGODB_HOST;
+const mongodb_user = process.env.MONGODB_USER;
+const mongodb_password = process.env.MONGODB_PASSWORD;
+const mongodb_database = process.env.MONGODB_DATABASE;
+const mongodb_session_secret = process.env.MONGODB_SESSION_SECRET;
+const node_session_secret = process.env.NODE_SESSION_SECRET;
+/* secret info */
 
 app.use(
   session({
@@ -25,14 +34,28 @@ app.use(
 
 // var numPageHits = 0;
 
-app.get("/", (req, res) => {
-  if (req.session.numPageHits == null) {
-    req.session.numPageHits = 0;
+app.get("/corgi/:id", (req, res) => {
+  var corgi = req.params.id;
+  if (corgi == 1) {
+    res.send("corgi 1: <img src='/images/corgi1.jpg' />");
+  } else if (corgi == 2) {
+    res.send("corgi 2: <img src='/images/corgi2.jpg' />");
+  } else if (corgi == 3) {
+    res.send("corgi 3: <img src='/images/corgi3.jpg' />");
   } else {
-    req.session.numPageHits++;
+    res.send("Invalid corgi ID: " + corgi);
   }
-  //   numPageHits++;
-  res.send("You have visited this page " + req.session.numPageHits + " times!");
+});
+
+app.use(express.static(__dirname + "/public"));
+
+app.get("/notfound", (req, res) => {
+  res.status(404);
+  res.send("Page not found - 404");
+});
+
+app.get("*", (req, res) => {
+  res.redirect("/notfound");
 });
 
 app.listen(port, () => console.log(`Listening on port ${port}...`));
