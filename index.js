@@ -144,13 +144,13 @@ app.post("/submitEmail", (req, res) => {
 });
 
 // signup page
-app.get("/signup", (req, res) => {
+app.get('/signup', (req,res) => {
   var html = `
   create user
   <form action='/submitUser' method='post'>
-    <input name='name' type='text' placeholder='Name'><br>
-    <input name='email' type='email' placeholder='Email'><br>
-    <input name='password' type='password' placeholder='Password'>
+    <input name='name' type='text' placeholder='name'><br>
+    <input name='email' type='email' placeholder='email'><br>
+    <input name='password' type='password' placeholder='password'>
     <button>Submit</button>
   </form>
   `;
@@ -173,36 +173,28 @@ app.get("/login", (req, res) => {
   res.send(html);
 });
 
-app.post("/submitUser", async (req, res) => {
+app.post('/submitUser', async (req, res) => {
   var name = req.body.name;
   var email = req.body.email;
   var password = req.body.password;
 
   const schema = Joi.object({
-    name: Joi.string().min(1).max(20).required(),
-    email: Joi.string().email().required(),
-    password: Joi.string().max(20).required(),
+      name: Joi.string().min(1).max(20).required(),
+      email: Joi.string().email().required(),
+      password: Joi.string().max(20).required(),
   });
 
   const validationResult = schema.validate({ name, email, password });
   if (validationResult.error != null) {
-    console.log(validationResult.error);
-    res.redirect(
-      `/signupSubmit?error=${encodeURIComponent(
-        validationResult.error.details[0].message
-      )}`
-    );
-    return;
+      console.log(validationResult.error);
+      res.redirect(`/signupSubmit?error=${encodeURIComponent(validationResult.error.details[0].message)}`);
+      return;
   }
 
   var hashedPassword = await bcrypt.hash(password, saltRounds);
 
-  await userCollection.insertOne({
-    name: name,
-    email: email,
-    password: hashedPassword,
-  });
-  console.log("Inserted user");
+  await userCollection.insertOne({ name: name, email: email, password: hashedPassword });
+  console.log('Inserted user');
 
   // Create a session for the new user
   req.session.authenticated = true;
@@ -211,7 +203,7 @@ app.post("/submitUser", async (req, res) => {
   req.session.password = hashedPassword;
   req.session.cookie.maxAge = expireTime;
 
-  res.redirect("/members");
+  res.redirect('/members');
 });
 
 app.get("/signupSubmit", (req, res) => {
