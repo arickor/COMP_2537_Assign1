@@ -223,41 +223,39 @@ app.get("/signupSubmit", (req, res) => {
 });
 
 // checking if user exists
-app.post("/loggingIn", async (req, res) => {
-  var username = req.body.username;
+app.post('/loggingin', async (req, res) => {
+  var email = req.body.email;
   var password = req.body.password;
 
-  const schema = Joi.string().max(20).required();
-  const validationResult = schema.validate(username);
+  const schema = Joi.string().email().required();
+  const validationResult = schema.validate(email);
   if (validationResult.error != null) {
-    console.log(validationResult.error);
-    res.redirect("/login");
-    return;
+      console.log(validationResult.error);
+      res.redirect('/login');
+      return;
   }
 
-  const result = await userCollection
-    .find({ username: username })
-    .project({ username: 1, password: 1, _id: 1 })
-    .toArray();
+  const result = await userCollection.find({ email: email }).project({ name: 1, email: 1, password: 1, _id: 1 }).toArray();
 
   console.log(result);
   if (result.length != 1) {
-    console.log("user not found");
-    res.redirect("/login");
-    return;
+      console.log('user not found');
+      res.redirect(`/loginSubmit?error=User not found`);
+      return;
   }
   if (await bcrypt.compare(password, result[0].password)) {
-    console.log("correct password");
-    req.session.authenticated = true;
-    req.session.username = username;
-    req.session.cookie.maxAge = expireTime;
+      console.log('correct password');
+      req.session.authenticated = true;
+      req.session.email = email;
+      req.session.name = result[0].name;
+      req.session.cookie.maxAge = expireTime;
 
-    res.redirect("/loggedIn");
-    return;
+      res.redirect('/loggedIn');
+      return;
   } else {
-    console.log("incorrect password");
-    res.redirect("/login");
-    return;
+      console.log('incorrect password');
+      res.redirect(`/loginSubmit?error=Password is incorrect`);
+      return;
   }
 });
 
@@ -278,15 +276,11 @@ app.get("/loggedIn", (req, res) => {
 });
 
 app.get("/logout", (req, res) => {
-  req.session.destroy((error) => {
-    if (error) {
-      console.log("Error destroying session:", error);
-    } else {
-      console.log("Session destroyed successfully");
-    }
-    res.clearCookie("connect.sid");
-    res.redirect("/");
-  });
+  req.session.destroy();
+  var html = `
+    You are logged out.
+    `;
+  res.send(html);
 });
 
 app.get("/corgi/:id", (req, res) => {
