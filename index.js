@@ -58,22 +58,19 @@ app.get("/", (req, res) => {
       </form>
       `);
   } else {
-    var hello = `<h2>Hello, ` + req.session.name + `!</h2>`;
+    var hello = `<h2>Hello, ` + req.session.name + `.</h2>`;
 
-    var membersArea = `<form action='/members' method='get'>
-      <button>Go to Members Area ;)</button>
-    </form>`;
+    var membersArea = `<form action='/members' method='get'><button>Go to Members Area</button></form>`;
 
-    var logOut = `<form action='/logout' method='get'>
-      <button>Log Out</button>
-    </form>`;
+    var logout = `<form action='/logout' method='get'><button>Log Out</button></form>`;
 
-    var html = hello + membersArea + logOut;
+    var html = hello + membersArea + logout;
 
     res.send(html);
   }
 });
 
+// protection against NoSQL injection attacks
 app.get("/nosql-injection", async (req, res) => {
   var username = req.query.user;
 
@@ -106,6 +103,7 @@ app.get("/nosql-injection", async (req, res) => {
   res.send(`<h1>Hello ${username}</h1>`);
 });
 
+// contact page
 app.get("/contact", (req, res) => {
   var missingEmail = req.query.missing;
   var html = `
@@ -121,6 +119,21 @@ app.get("/contact", (req, res) => {
   res.send(html);
 });
 
+app.get("/members", (req, res) => {
+  var email = req.session.email;
+
+  if (!email) {
+    res.redirect("/login");
+  }
+  var msg = "<h3>Hello, " + req.session.name + ".</h3>";
+  var logout =
+    "<form action='/logout' method='get'><button>Sign Out</button><br></form>";
+  var id = Math.floor(Math.random() * 3) + 1;
+  var img = "<img src='/" + id + ".jpg'>";
+  var html = msg + `<br>` + img + logout;
+  res.send(html);
+});
+
 app.post("/submitEmail", (req, res) => {
   var email = req.body.email;
   if (!email) {
@@ -130,6 +143,7 @@ app.post("/submitEmail", (req, res) => {
   }
 });
 
+// signup page
 app.get("/signup", (req, res) => {
   var html = `
   create user
@@ -143,6 +157,64 @@ app.get("/signup", (req, res) => {
   res.send(html);
 });
 
+app.get("/login", (req, res) => {
+  var email = req.session.email;
+  if (email) {
+    res.redirect("/");
+  }
+  var html = `
+  log in
+  <form action='/loggingin' method='post'>
+    <input name='email' type='email' placeholder='email'>
+    <input name='password' type='password' placeholder='password'>
+    <button>Submit</button>
+  </form>
+  `;
+  res.send(html);
+});
+
+app.post("/submitUser", async (req, res) => {
+  var name = req.body.name;
+  var email = req.body.email;
+  var password = req.body.password;
+
+  const schema = Joi.object({
+    name: Joi.string().min(1).max(20).required(),
+    email: Joi.string().email().required(),
+    password: Joi.string().max(20).required(),
+  });
+
+  const validationResult = schema.validate({ name, email, password });
+  if (validationResult.error != null) {
+    console.log(validationResult.error);
+    res.redirect(
+      `/signupSubmit?error=${encodeURIComponent(
+        validationResult.error.details[0].message
+      )}`
+    );
+    return;
+  }
+
+  var hashedPassword = await bcrypt.hash(password, saltRounds);
+
+  await userCollection.insertOne({
+    name: name,
+    email: email,
+    password: hashedPassword,
+  });
+  console.log("Inserted user");
+
+  // Create a session for the new user
+  req.session.authenticated = true;
+  req.session.email = email;
+  req.session.name = name;
+  req.session.password = hashedPassword;
+  req.session.cookie.maxAge = expireTime;
+
+  res.redirect("/members");
+});
+
+// checking if user exists
 app.post("/loggingin", async (req, res) => {
   var username = req.body.username;
   var password = req.body.password;
@@ -181,14 +253,42 @@ app.post("/loggingin", async (req, res) => {
   }
 });
 
+app.get("/loginSubmit", (req, res) => {
+  const errorMessage = req.query.error;
+  var html = `
+  <p>${errorMessage}. <a href='/login'>Try again</a></p>
+  `;
+  res.send(html);
+});
+
+app.get("/loggedin", (req, res) => {
+  if (!req.session.authenticated) {
+    res.redirect("/login");
+  } else {
+    res.redirect("/members");
+  }
+});
+
+app.get("/logout", (req, res) => {
+  req.session.destroy((error) => {
+    if (error) {
+      console.log("Error destroying session:", error);
+    } else {
+      console.log("Session destroyed successfully");
+    }
+    res.clearCookie("connect.sid");
+    res.redirect("/");
+  });
+});
+
 app.get("/corgi/:id", (req, res) => {
   var corgi = req.params.id;
   if (corgi == 1) {
-    res.send("corgi 1: <img src='/images/corgi1.jpg' />");
+    res.send("corgi 1: <img src='/1.jpg' style='width:250px;'>");
   } else if (corgi == 2) {
-    res.send("corgi 2: <img src='/images/corgi2.jpg' />");
+    res.send("corgi 2: <img src='/2.jpg' style='width:250px;'>");
   } else if (corgi == 3) {
-    res.send("corgi 3: <img src='/images/corgi3.jpg' />");
+    res.send("corgi 3: <img src='/3.jpg' style='width:250px;'>");
   } else {
     res.send("Invalid corgi ID: " + corgi);
   }
@@ -196,13 +296,13 @@ app.get("/corgi/:id", (req, res) => {
 
 app.use(express.static(__dirname + "/public"));
 
-app.get("/notfound", (req, res) => {
+app.get("/does_not_exist", (req, res) => {
   res.status(404);
   res.send("Page not found - 404");
 });
 
 app.get("*", (req, res) => {
-  res.redirect("/notfound");
+  res.redirect("/does_not_exist");
 });
 
 app.listen(port, () => console.log(`Listening on port ${port}...`));
