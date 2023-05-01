@@ -163,10 +163,10 @@ app.get("/login", (req, res) => {
     res.redirect("/");
   }
   var html = `
-  log in
+  Log In
   <form action='/loggingin' method='post'>
-    <input name='email' type='email' placeholder='email'>
-    <input name='password' type='password' placeholder='password'>
+    <input name='email' type='email' placeholder='Email'>
+    <input name='password' type='password' placeholder='Password'>
     <button>Submit</button>
   </form>
   `;
@@ -214,8 +214,16 @@ app.post("/submitUser", async (req, res) => {
   res.redirect("/members");
 });
 
+app.get("/signupSubmit", (req, res) => {
+  const errorMessage = decodeURIComponent(req.query.error);
+  var html = `
+  <p>${errorMessage}. <a href='/signup'>Please try again.</a></p>
+  `;
+  res.send(html);
+});
+
 // checking if user exists
-app.post("/loggingin", async (req, res) => {
+app.post("/loggingIn", async (req, res) => {
   var username = req.body.username;
   var password = req.body.password;
 
@@ -261,7 +269,7 @@ app.get("/loginSubmit", (req, res) => {
   res.send(html);
 });
 
-app.get("/loggedin", (req, res) => {
+app.get("/loggedIn", (req, res) => {
   if (!req.session.authenticated) {
     res.redirect("/login");
   } else {
