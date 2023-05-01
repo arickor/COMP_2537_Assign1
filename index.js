@@ -44,28 +44,65 @@ app.get("/", (req, res) => {
   if (!email) {
     res.send(`
       <form action='/signup' method='get'>
-      <button>Sign Up</button><br>
+        <button>Sign Up</button><br>
       </form>
       
       <form action='/login' method='get'>
-      <button>Log In</button>
+        <button>Log In</button>
       </form>
       `);
   } else {
     var hello = `<h2>Hello, ` + req.session.name + `!</h2>`;
 
     var membersArea = `<form action='/members' method='get'>
-    <button>Go to Members Area ;)</button>
+      <button>Go to Members Area ;)</button>
     </form>`;
 
     var logOut = `<form action='/logout' method='get'>
-    <button>Log Out</button>
+      <button>Log Out</button>
     </form>`;
 
     var html = hello + membersArea + logOut;
 
     res.send(html);
   }
+});
+
+app.get("/contact", (req, res) => {
+  var missingEmail = req.query.missing;
+  var html = `
+      email address:
+      <form action='/submitEmail' method='post'>
+        <input name='email' type='text' placeholder='email'>
+        <button>Submit</button>
+      </form>
+  `;
+  if (missingEmail) {
+    html += "<br> email is required";
+  }
+  res.send(html);
+});
+
+app.post("/submitEmail", (req, res) => {
+  var email = req.body.email;
+  if (!email) {
+    res.redirect("/contact?missing=1");
+  } else {
+    res.send("Thanks for subscribing with your email: " + email);
+  }
+});
+
+app.get("/signup", (req, res) => {
+  var html = `
+  create user
+  <form action='/submitUser' method='post'>
+    <input name='name' type='text' placeholder='Name'><br>
+    <input name='email' type='email' placeholder='Email'><br>
+    <input name='password' type='password' placeholder='Password'>
+    <button>Submit</button>
+  </form>
+  `;
+  res.send(html);
 });
 
 app.get("/corgi/:id", (req, res) => {
