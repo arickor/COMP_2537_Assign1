@@ -1,7 +1,12 @@
+require('dotenv').config();
+require("./utils.js");
+
 const MongoStore = require("connect-mongo");
 const express = require("express");
 const Joi = require("joi");
 const session = require("express-session");
+const bcrypt = require("bcrypt");
+const saltRounds = 12;
 
 const app = express();
 
