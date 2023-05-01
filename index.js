@@ -103,48 +103,23 @@ app.get("/nosql-injection", async (req, res) => {
   res.send(`<h1>Hello ${username}</h1>`);
 });
 
-// contact page
-app.get("/contact", (req, res) => {
-  var missingEmail = req.query.missing;
-  var html = `
-      email address:
-      <form action='/submitEmail' method='post'>
-        <input name='email' type='text' placeholder='email'>
-        <button>Submit</button>
-      </form>
-  `;
-  if (missingEmail) {
-    html += "<br> email is required";
-  }
-  res.send(html);
-});
-
 app.get("/members", (req, res) => {
   var email = req.session.email;
 
   if (!email) {
-    res.redirect("/login");
+    res.redirect("/");
   }
   var msg = "<h3>Hello, " + req.session.name + ".</h3>";
   var logout =
     "<form action='/logout' method='get'><button>Sign Out</button><br></form>";
-  var id = Math.floor(Math.random() * 3) + 1;
-  var img = "<img src='/" + id + ".jpg'>";
-  var html = msg + `<br>` + img + logout;
+  var corgiID = Math.floor(Math.random() * 3) + 1;
+  var corgi = "<img src='/" + corgiID + ".jpg'>";
+  var html = msg + `<br>` + corgi + logout;
   res.send(html);
 });
 
-app.post("/submitEmail", (req, res) => {
-  var email = req.body.email;
-  if (!email) {
-    res.redirect("/contact?missing=1");
-  } else {
-    res.send("Thanks for subscribing with your email: " + email);
-  }
-});
-
 // signup page
-app.get('/signup', (req,res) => {
+app.get("/signup", (req, res) => {
   var html = `
   create user
   <form action='/submitUser' method='post'>
@@ -161,8 +136,8 @@ app.get("/login", (req, res) => {
   var email = req.session.email;
   if (email) {
     res.redirect("/");
-  }
-  var html = `
+  } else {
+    var html = `
   Log In
   <form action='/loggingin' method='post'>
     <input name='email' type='email' placeholder='Email'>
@@ -170,31 +145,40 @@ app.get("/login", (req, res) => {
     <button>Submit</button>
   </form>
   `;
-  res.send(html);
+    res.send(html);
+  }
 });
 
-app.post('/submitUser', async (req, res) => {
+app.post("/submitUser", async (req, res) => {
   var name = req.body.name;
   var email = req.body.email;
   var password = req.body.password;
 
   const schema = Joi.object({
-      name: Joi.string().min(1).max(20).required(),
-      email: Joi.string().email().required(),
-      password: Joi.string().max(20).required(),
+    name: Joi.string().min(1).max(20).required(),
+    email: Joi.string().email().required(),
+    password: Joi.string().max(20).required(),
   });
 
   const validationResult = schema.validate({ name, email, password });
   if (validationResult.error != null) {
-      console.log(validationResult.error);
-      res.redirect(`/signupSubmit?error=${encodeURIComponent(validationResult.error.details[0].message)}`);
-      return;
+    console.log(validationResult.error);
+    res.redirect(
+      `/signupSubmit?error=${encodeURIComponent(
+        validationResult.error.details[0].message
+      )}`
+    );
+    return;
   }
 
   var hashedPassword = await bcrypt.hash(password, saltRounds);
 
-  await userCollection.insertOne({ name: name, email: email, password: hashedPassword });
-  console.log('Inserted user');
+  await userCollection.insertOne({
+    name: name,
+    email: email,
+    password: hashedPassword,
+  });
+  console.log("Inserted user");
 
   // Create a session for the new user
   req.session.authenticated = true;
@@ -203,7 +187,7 @@ app.post('/submitUser', async (req, res) => {
   req.session.password = hashedPassword;
   req.session.cookie.maxAge = expireTime;
 
-  res.redirect('/members');
+  res.redirect("/members");
 });
 
 app.get("/signupSubmit", (req, res) => {
@@ -215,39 +199,42 @@ app.get("/signupSubmit", (req, res) => {
 });
 
 // checking if user exists
-app.post('/loggingin', async (req, res) => {
+app.post("/loggingin", async (req, res) => {
   var email = req.body.email;
   var password = req.body.password;
 
   const schema = Joi.string().email().required();
   const validationResult = schema.validate(email);
   if (validationResult.error != null) {
-      console.log(validationResult.error);
-      res.redirect('/login');
-      return;
+    console.log(validationResult.error);
+    res.redirect("/login");
+    return;
   }
 
-  const result = await userCollection.find({ email: email }).project({ name: 1, email: 1, password: 1, _id: 1 }).toArray();
+  const result = await userCollection
+    .find({ email: email })
+    .project({ name: 1, email: 1, password: 1, _id: 1 })
+    .toArray();
 
   console.log(result);
   if (result.length != 1) {
-      console.log('user not found');
-      res.redirect(`/loginSubmit?error=User not found`);
-      return;
+    console.log("user not found");
+    res.redirect(`/loginSubmit?error=User not found`);
+    return;
   }
   if (await bcrypt.compare(password, result[0].password)) {
-      console.log('correct password');
-      req.session.authenticated = true;
-      req.session.email = email;
-      req.session.name = result[0].name;
-      req.session.cookie.maxAge = expireTime;
+    console.log("correct password");
+    req.session.authenticated = true;
+    req.session.email = email;
+    req.session.name = result[0].name;
+    req.session.cookie.maxAge = expireTime;
 
-      res.redirect('/loggedIn');
-      return;
+    res.redirect("/loggedIn");
+    return;
   } else {
-      console.log('incorrect password');
-      res.redirect(`/loginSubmit?error=Password is incorrect`);
-      return;
+    console.log("incorrect password");
+    res.redirect(`/loginSubmit?error=Password is incorrect`);
+    return;
   }
 });
 
@@ -269,10 +256,10 @@ app.get("/loggedIn", (req, res) => {
 
 app.get("/logout", (req, res) => {
   req.session.destroy();
-  var html = `
-    You are logged out.
-    `;
-  res.send(html);
+  // var html = `
+  //   You are logged out.
+  //   `;
+  res.redirect("/");
 });
 
 app.get("/corgi/:id", (req, res) => {
