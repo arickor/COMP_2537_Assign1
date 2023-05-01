@@ -29,7 +29,7 @@ const userCollection = database.db(mongodb_database).collection("users");
 app.use(express.urlencoded({ extended: false }));
 
 var mongoStore = MongoStore.create({
-  mongoUrl: `mongodb+srv://${mongodb_user}:${mongodb_password}@${mongodb_host}/comp2537assign1`,
+  mongoUrl: `mongodb+srv://${mongodb_user}:${mongodb_password}@${mongodb_host}/sessions`,
   crypto: {
     secret: mongodb_session_secret,
   },
@@ -262,7 +262,7 @@ app.post('/loggingin', async (req, res) => {
 app.get("/loginSubmit", (req, res) => {
   const errorMessage = req.query.error;
   var html = `
-  <p>${errorMessage}. <a href='/login'>Try again</a></p>
+  <p>${errorMessage}. <a href='/login'>Please try again.</a></p>
   `;
   res.send(html);
 });
