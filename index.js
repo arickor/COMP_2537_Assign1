@@ -1,6 +1,5 @@
 require("dotenv").config();
 require("./utils.js");
-
 const MongoStore = require("connect-mongo");
 const express = require("express");
 const Joi = require("joi");
@@ -23,16 +22,21 @@ const mongodb_session_secret = process.env.MONGODB_SESSION_SECRET;
 const node_session_secret = process.env.NODE_SESSION_SECRET;
 /* secret info */
 
+var mongoStore = MongoStore.create({
+  mongoUrl: `mongodb+srv://${mongodb_user}:${mongodb_password}@${mongodb_host}/sessions`,
+  crypto: {
+    secret: mongodb_session_secret,
+  },
+});
+
 app.use(
   session({
     secret: node_session_secret,
-    // store: mongoStore,
+    store: mongoStore, //default is memory store
     saveUninitialized: false,
     resave: true,
   })
 );
-
-// var numPageHits = 0;
 
 app.get("/corgi/:id", (req, res) => {
   var corgi = req.params.id;
