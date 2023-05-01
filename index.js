@@ -38,6 +38,36 @@ app.use(
   })
 );
 
+app.get("/", (req, res) => {
+  var email = req.session.email;
+
+  if (!email) {
+    res.send(`
+      <form action='/signup' method='get'>
+      <button>Sign Up</button><br>
+      </form>
+      
+      <form action='/login' method='get'>
+      <button>Log In</button>
+      </form>
+      `);
+  } else {
+    var hello = `<h2>Hello, ` + req.session.name + `!</h2>`;
+
+    var membersArea = `<form action='/members' method='get'>
+    <button>Go to Members Area ;)</button>
+    </form>`;
+
+    var logOut = `<form action='/logout' method='get'>
+    <button>Log Out</button>
+    </form>`;
+
+    var html = hello + membersArea + logOut;
+
+    res.send(html);
+  }
+});
+
 app.get("/corgi/:id", (req, res) => {
   var corgi = req.params.id;
   if (corgi == 1) {
