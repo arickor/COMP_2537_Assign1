@@ -22,6 +22,12 @@ const mongodb_session_secret = process.env.MONGODB_SESSION_SECRET;
 const node_session_secret = process.env.NODE_SESSION_SECRET;
 /* secret info */
 
+var { database } = include("databaseConnection");
+
+const userCollection = database.db(mongodb_database).collection("users");
+
+app.use(express.urlencoded({ extended: false }));
+
 var mongoStore = MongoStore.create({
   mongoUrl: `mongodb+srv://${mongodb_user}:${mongodb_password}@${mongodb_host}/sessions`,
   crypto: {
@@ -68,6 +74,38 @@ app.get("/", (req, res) => {
   }
 });
 
+app.get("/nosql-injection", async (req, res) => {
+  var username = req.query.user;
+
+  if (!username) {
+    res.send(
+      `<h3>no user provided - try /nosql-injection?user=name</h3> <h3>or /nosql-injection?user[$ne]=name</h3>`
+    );
+    return;
+  }
+  console.log("user: " + username);
+
+  const schema = Joi.string().max(20).required();
+  const validationResult = schema.validate(username);
+
+  if (validationResult.error != null) {
+    console.log(validationResult.error);
+    res.send(
+      "<h1 style='color:darkred;'>A NoSQL injection attack was detected!!</h1>"
+    );
+    return;
+  }
+
+  const result = await userCollection
+    .find({ username: username })
+    .project({ username: 1, password: 1, _id: 1 })
+    .toArray();
+
+  console.log(result);
+
+  res.send(`<h1>Hello ${username}</h1>`);
+});
+
 app.get("/contact", (req, res) => {
   var missingEmail = req.query.missing;
   var html = `
@@ -105,40 +143,42 @@ app.get("/signup", (req, res) => {
   res.send(html);
 });
 
-app.post('/loggingin', async (req,res) => {
+app.post("/loggingin", async (req, res) => {
   var username = req.body.username;
   var password = req.body.password;
 
-const schema = Joi.string().max(20).required();
-const validationResult = schema.validate(username);
-if (validationResult.error != null) {
-   console.log(validationResult.error);
-   res.redirect("/login");
-   return;
-}
+  const schema = Joi.string().max(20).required();
+  const validationResult = schema.validate(username);
+  if (validationResult.error != null) {
+    console.log(validationResult.error);
+    res.redirect("/login");
+    return;
+  }
 
-const result = await userCollection.find({username: username}).project({username: 1, password: 1, _id: 1}).toArray();
+  const result = await userCollection
+    .find({ username: username })
+    .project({ username: 1, password: 1, _id: 1 })
+    .toArray();
 
-console.log(result);
-if (result.length != 1) {
-  console.log("user not found");
-  res.redirect("/login");
-  return;
-}
-if (await bcrypt.compare(password, result[0].password)) {
-  console.log("correct password");
-  req.session.authenticated = true;
-  req.session.username = username;
-  req.session.cookie.maxAge = expireTime;
+  console.log(result);
+  if (result.length != 1) {
+    console.log("user not found");
+    res.redirect("/login");
+    return;
+  }
+  if (await bcrypt.compare(password, result[0].password)) {
+    console.log("correct password");
+    req.session.authenticated = true;
+    req.session.username = username;
+    req.session.cookie.maxAge = expireTime;
 
-  res.redirect('/loggedIn');
-  return;
-}
-else {
-  console.log("incorrect password");
-  res.redirect("/login");
-  return;
-}
+    res.redirect("/loggedIn");
+    return;
+  } else {
+    console.log("incorrect password");
+    res.redirect("/login");
+    return;
+  }
 });
 
 app.get("/corgi/:id", (req, res) => {
