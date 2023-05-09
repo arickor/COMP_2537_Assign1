@@ -6,10 +6,26 @@ const Joi = require("joi");
 const session = require("express-session");
 const bcrypt = require("bcrypt");
 const saltRounds = 12;
+const url = require("url");
 
 const app = express();
 
 const port = process.env.PORT || 3000;
+
+const navLinks = [
+  { name: "Home", link: "/" },
+  { name: "Members", link: "/members" },
+  { name: "Login", link: "/login" },
+  { name: "Signup", link: "/signup" },
+  { name: "Admin", link: "/admin" },
+  { name: "404", link: "/404" },
+];
+
+app.use("/", (req, res, next) => {
+  app.locals.navLinks = navLinks;
+  app.locals.currentURL = url.parse(req.url).pathname;
+  next();
+});
 
 const expireTime = 1 * 60 * 60 * 1000; // 1 hour
 
@@ -79,7 +95,9 @@ function isAdmin(req) {
 function adminAuthorization(req, res, next) {
   if (!isAdmin(req)) {
     res.status(403);
-    res.render("errorMessage", { error: "You are not authorized." });
+    res.render("errorMessage", {
+      error: "You are not authorized. 403",
+    });
     return;
   } else {
     next();
@@ -87,7 +105,9 @@ function adminAuthorization(req, res, next) {
 }
 
 app.get("/", (req, res) => {
-  res.render("index", { session: req.session });
+  res.render("index", {
+    session: req.session,
+  });
 });
 
 // protection against NoSQL injection attacks
@@ -125,23 +145,29 @@ app.get("/nosql-injection", async (req, res) => {
 
 // signup page
 app.get("/signup", (req, res) => {
-  res.render("signUp");
+  res.render("signUp", {
+  });
 });
 
 app.get("/login", (req, res) => {
   if (!req.session.email) {
-    res.render("login", { session: req.session });
+    res.render("login", {
+      session: req.session,
+    });
   } else {
     res.redirect("/");
   }
 });
 
 app.get("/members", (req, res) => {
-	if (req.session.email) {
-    res.render('corgi', {
-    session: req.session,
-    id: Math.random() * 3 + 1});
-} else {res.redirect('/');}
+  if (req.session.email) {
+    res.render("corgi", {
+      session: req.session,
+      id: Math.random() * 3 + 1,
+    });
+  } else {
+    res.redirect("/");
+  }
 });
 
 app.post("/submitUser", async (req, res) => {
@@ -207,7 +233,9 @@ app.post("/loggingin", async (req, res) => {
   const validationResult = schema.validate({ email, password });
   if (validationResult.error != null) {
     console.log(validationResult.error);
-    res.render("loginError", { errorMessage: req.query.error });
+    res.render("loginError", {
+      errorMessage: req.query.error,
+    });
     return;
   }
 
@@ -217,7 +245,9 @@ app.post("/loggingin", async (req, res) => {
     .toArray();
 
   if (result.length != 1) {
-    res.render("loginError", { errorMessage: req.query.error });
+    res.render("loginError", {
+      errorMessage: req.query.error,
+    });
     return;
   }
 
@@ -232,7 +262,9 @@ app.post("/loggingin", async (req, res) => {
     res.redirect("/members");
     return;
   } else {
-    res.render("loginError", { errorMessage: req.query.error });
+    res.render("loginError", {
+      errorMessage: req.query.error,
+    });
     return;
   }
 });
@@ -262,7 +294,9 @@ app.get("/admin", sessionValidation, adminAuthorization, async (req, res) => {
     .find()
     .project({ name: 1, user_type: 1, _id: 1 })
     .toArray();
-  res.render("admin", { users: result });
+  res.render("admin", {
+    users: result,
+  });
 });
 
 app.get(
@@ -280,9 +314,9 @@ app.get(
       res.redirect("/admin");
     } catch (err) {
       console.log(err);
-      res
-        .status(500)
-        .render("errorMessage", { error: "Unable to promote to admin." });
+      res.status(500).render("errorMessage", {
+        error: "Unable to promote to admin.",
+      });
     }
   }
 );
@@ -302,9 +336,9 @@ app.get(
       res.redirect("/admin");
     } catch (err) {
       console.log(err);
-      res
-        .status(500)
-        .render("errorMessage", { error: "Unable to demote to user." });
+      res.status(500).render("errorMessage", {
+        error: "Unable to demote to user.",
+      });
     }
   }
 );
@@ -313,7 +347,8 @@ app.use(express.static(__dirname + "/public"));
 
 app.get("*", (req, res) => {
   res.status(404);
-  res.render("404");
+  res.render("404", {
+  });
 });
 
 app.listen(port, () => console.log(`Listening on port ${port}...`));
