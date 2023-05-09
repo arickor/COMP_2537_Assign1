@@ -123,21 +123,6 @@ app.get("/nosql-injection", async (req, res) => {
   res.send(`<h1>Hello ${username}</h1>`);
 });
 
-app.get("/members", (req, res) => {
-  var email = req.session.email;
-
-  if (!email) {
-    res.redirect("/");
-  }
-  var msg = "<h3>Hello, " + req.session.name + ".</h3>";
-  var logout =
-    "<form action='/logout' method='get'><button>Sign Out</button><br></form>";
-  var corgiID = Math.floor(Math.random() * 3) + 1;
-  var corgi = "<img src='/" + corgiID + ".jpg'>";
-  var html = msg + `<br>` + corgi + logout;
-  res.send(html);
-});
-
 // signup page
 app.get("/signup", (req, res) => {
   res.render("signUp");
@@ -152,20 +137,11 @@ app.get("/login", (req, res) => {
 });
 
 app.get("/members", (req, res) => {
-  if (!req.session.authenticated) {
-    res.redirect("/");
-  } else {
-    var id = Math.floor(Math.random() * 3);
-    var corgi = "";
-    if (id == 0) {
-      corgi = "1.jpg";
-    } else if (id == 1) {
-      corgi = "2.jpg";
-    } else {
-      corgi = "3.jpg";
-    }
-    res.render("members", { username: req.session.username, corgi: corgi });
-  }
+	if (req.session.email) {
+    res.render('corgi', {
+    session: req.session,
+    id: Math.random() * 3 + 1});
+} else {res.redirect('/');}
 });
 
 app.post("/submitUser", async (req, res) => {
