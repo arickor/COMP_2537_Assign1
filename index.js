@@ -26,6 +26,10 @@ var { database } = include("databaseConnection");
 
 const userCollection = database.db(mongodb_database).collection("users");
 
+app.set("view engine", "ejs");
+
+const ObjectId = require("mongodb").ObjectId;
+
 app.use(express.urlencoded({ extended: false }));
 
 var mongoStore = MongoStore.create({
@@ -44,30 +48,46 @@ app.use(
   })
 );
 
-app.get("/", (req, res) => {
-  var email = req.session.email;
-
-  if (!email) {
-    res.send(`
-      <form action='/signup' method='get'>
-        <button>Sign Up</button><br>
-      </form>
-      
-      <form action='/login' method='get'>
-        <button>Log In</button>
-      </form>
-      `);
-  } else {
-    var hello = `<h2>Hello, ` + req.session.name + `.</h2>`;
-
-    var membersArea = `<form action='/members' method='get'><button>Go to Members Area</button></form>`;
-
-    var logout = `<form action='/logout' method='get'><button>Log Out</button></form>`;
-
-    var html = hello + membersArea + logout;
-
-    res.send(html);
+function isValidSession(req) {
+  if (req.session.authenticated) {
+    return true;
   }
+  return false;
+}
+
+async function promote(name, db) {
+  await db
+    .collection("users")
+    .updateOne({ name: name }, { $set: { user_type: "admin" } });
+}
+
+function sessionValidation(req, res, next) {
+  if (isValidSession(req)) {
+    next();
+  } else {
+    res.redirect("/login");
+  }
+}
+
+function isAdmin(req) {
+  if (req.session.user_type == "admin") {
+    return true;
+  }
+  return false;
+}
+
+function adminAuthorization(req, res, next) {
+  if (!isAdmin(req)) {
+    res.status(403);
+    res.render("errorMessage", { error: "You are not authorized." });
+    return;
+  } else {
+    next();
+  }
+}
+
+app.get("/", (req, res) => {
+  res.render("index", { session: req.session });
 });
 
 // protection against NoSQL injection attacks
@@ -120,32 +140,31 @@ app.get("/members", (req, res) => {
 
 // signup page
 app.get("/signup", (req, res) => {
-  var html = `
-  create user
-  <form action='/submitUser' method='post'>
-    <input name='name' type='text' placeholder='name'><br>
-    <input name='email' type='email' placeholder='email'><br>
-    <input name='password' type='password' placeholder='password'>
-    <button>Submit</button>
-  </form>
-  `;
-  res.send(html);
+  res.render("signUp");
 });
 
 app.get("/login", (req, res) => {
-  var email = req.session.email;
-  if (email) {
+  if (!req.session.email) {
+    res.render("login", { session: req.session });
+  } else {
+    res.redirect("/");
+  }
+});
+
+app.get("/members", (req, res) => {
+  if (!req.session.authenticated) {
     res.redirect("/");
   } else {
-    var html = `
-  Log In
-  <form action='/loggingin' method='post'>
-    <input name='email' type='email' placeholder='Email'>
-    <input name='password' type='password' placeholder='Password'>
-    <button>Submit</button>
-  </form>
-  `;
-    res.send(html);
+    var id = Math.floor(Math.random() * 3);
+    var corgi = "";
+    if (id == 0) {
+      corgi = "1.jpg";
+    } else if (id == 1) {
+      corgi = "2.jpg";
+    } else {
+      corgi = "3.jpg";
+    }
+    res.render("members", { username: req.session.username, corgi: corgi });
   }
 });
 
@@ -153,6 +172,7 @@ app.post("/submitUser", async (req, res) => {
   var name = req.body.name;
   var email = req.body.email;
   var password = req.body.password;
+  var userType = "user";
 
   const schema = Joi.object({
     name: Joi.string().min(1).max(20).required(),
@@ -163,11 +183,9 @@ app.post("/submitUser", async (req, res) => {
   const validationResult = schema.validate({ name, email, password });
   if (validationResult.error != null) {
     console.log(validationResult.error);
-    res.redirect(
-      `/signupSubmit?error=${encodeURIComponent(
-        validationResult.error.details[0].message
-      )}`
-    );
+    res.render("signUpError", {
+      errorMessage: validationResult.error.details[0].message,
+    });
     return;
   }
 
@@ -176,14 +194,16 @@ app.post("/submitUser", async (req, res) => {
   await userCollection.insertOne({
     name: name,
     email: email,
+    user_type: userType,
     password: hashedPassword,
   });
-  console.log("Inserted user");
+  console.log("User inserted");
 
   // Create a session for the new user
   req.session.authenticated = true;
   req.session.email = email;
   req.session.name = name;
+  req.session.user_type = userType;
   req.session.password = hashedPassword;
   req.session.cookie.maxAge = expireTime;
 
@@ -203,87 +223,121 @@ app.post("/loggingin", async (req, res) => {
   var email = req.body.email;
   var password = req.body.password;
 
-  const schema = Joi.string().email().required();
-  const validationResult = schema.validate(email);
+  const schema = Joi.object({
+    email: Joi.string().email().required(),
+    password: Joi.string().max(20).required(),
+  });
+
+  const validationResult = schema.validate({ email, password });
   if (validationResult.error != null) {
     console.log(validationResult.error);
-    res.redirect("/login");
+    res.render("loginError", { errorMessage: req.query.error });
     return;
   }
 
   const result = await userCollection
     .find({ email: email })
-    .project({ name: 1, email: 1, password: 1, _id: 1 })
+    .project({ email: 1, password: 1, name: 1, user_type: 1, _id: 1 })
     .toArray();
 
-  console.log(result);
   if (result.length != 1) {
-    console.log("user not found");
-    res.redirect(`/loginSubmit?error=User not found`);
+    res.render("loginError", { errorMessage: req.query.error });
     return;
   }
+
   if (await bcrypt.compare(password, result[0].password)) {
-    console.log("correct password");
+    console.log("Credentials valid!");
     req.session.authenticated = true;
     req.session.email = email;
     req.session.name = result[0].name;
+    req.session.user_type = result[0].user_type;
     req.session.cookie.maxAge = expireTime;
 
-    res.redirect("/loggedIn");
+    res.redirect("/members");
     return;
   } else {
-    console.log("incorrect password");
-    res.redirect(`/loginSubmit?error=Password is incorrect`);
+    res.render("loginError", { errorMessage: req.query.error });
     return;
   }
 });
 
-app.get("/loginSubmit", (req, res) => {
-  const errorMessage = req.query.error;
-  var html = `
-  <p>${errorMessage}. <a href='/login'>Please try again.</a></p>
-  `;
-  res.send(html);
-});
+app.use("/loggedIn", sessionValidation);
 
 app.get("/loggedIn", (req, res) => {
   if (!req.session.authenticated) {
     res.redirect("/login");
   } else {
-    res.redirect("/members");
+    res.redirect("/loggedIn");
   }
 });
 
 app.get("/logout", (req, res) => {
   req.session.destroy();
-  // var html = `
-  //   You are logged out.
-  //   `;
   res.redirect("/");
 });
 
 app.get("/corgi/:id", (req, res) => {
   var corgi = req.params.id;
-  if (corgi == 1) {
-    res.send("corgi 1: <img src='/1.jpg' style='width:250px;'>");
-  } else if (corgi == 2) {
-    res.send("corgi 2: <img src='/2.jpg' style='width:250px;'>");
-  } else if (corgi == 3) {
-    res.send("corgi 3: <img src='/3.jpg' style='width:250px;'>");
-  } else {
-    res.send("Invalid corgi ID: " + corgi);
-  }
+  res.render("corgi", { corgi: corgi });
 });
+
+app.get("/admin", sessionValidation, adminAuthorization, async (req, res) => {
+  const result = await userCollection
+    .find()
+    .project({ name: 1, user_type: 1, _id: 1 })
+    .toArray();
+  res.render("admin", { users: result });
+});
+
+app.get(
+  "/admin/promote/:id",
+  sessionValidation,
+  adminAuthorization,
+  async (req, res) => {
+    const userID = req.params.id;
+
+    try {
+      await userCollection.updateOne(
+        { _id: new ObjectId(userID) },
+        { $set: { user_type: "admin" } }
+      );
+      res.redirect("/admin");
+    } catch (err) {
+      console.log(err);
+      res
+        .status(500)
+        .render("errorMessage", { error: "Unable to promote to admin." });
+    }
+  }
+);
+
+app.get(
+  "/admin/demote/:id",
+  sessionValidation,
+  adminAuthorization,
+  async (req, res) => {
+    const userID = req.params.id;
+
+    try {
+      await userCollection.updateOne(
+        { _id: new ObjectId(userID) },
+        { $set: { user_type: "user" } }
+      );
+      res.redirect("/admin");
+    } catch (err) {
+      console.log(err);
+      res
+        .status(500)
+        .render("errorMessage", { error: "Unable to demote to user." });
+    }
+  }
+);
 
 app.use(express.static(__dirname + "/public"));
 
-app.get("/does_not_exist", (req, res) => {
-  res.status(404);
-  res.send("Page not found - 404");
-});
-
 app.get("*", (req, res) => {
-  res.redirect("/does_not_exist");
+  res.status(404);
+  res.render("404");
 });
 
 app.listen(port, () => console.log(`Listening on port ${port}...`));
